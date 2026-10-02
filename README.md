@@ -235,6 +235,8 @@ npm start            # 펫 실행
 npm run dist:win     # Windows 설치 파일 (dist/ClaudePet-Setup-x.y.z.exe)
 ```
 
+`package.json` 의 `version` 을 올려 `main` 에 푸시하면 GitHub Actions 가 Windows 설치 파일을 만들어 [Releases](https://github.com/juyung861-glitch/ClaudePet-Public/releases) 에 자동으로 올려요.
+
 ```
 ClaudePet/
 ├── hook.js              Claude Code 훅 진입점
