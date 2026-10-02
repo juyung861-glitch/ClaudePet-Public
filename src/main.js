@@ -6,6 +6,7 @@ const { app, BrowserWindow, ipcMain, Menu, Tray, screen, nativeImage, shell, dia
 
 const { paths, PACKAGED, loadConfig, updateConfig, readJson, writeJsonAtomic, ensureConfigFile, log } = require('./core/config');
 const hooksSetup = require('../scripts/install');
+const desktop = require('./core/desktop');
 const { listPets, resolvePet, findPet, loadSpriteDataUrl, loadCustomAnimations } = require('./core/pets');
 const { importAnimation } = require('./import');
 const gallery = require('./core/gallery');
@@ -33,7 +34,7 @@ const MENU_TEXT = {
     look: '마우스 바라보기 (v2 펫)', preview: '동작 미리보기', resetPos: '위치 초기화',
     autoStart: 'Claude Code 시작 시 자동 실행', quitWithSessions: '세션이 모두 끝나면 같이 종료',
     openConfig: '설정 파일 열기', openLog: '로그 열기', quit: '종료', codex: 'Codex', claude: '내 펫', builtin: '기본', extra: '추가',
-    noPets: '(펫 없음)', claudeCode: 'Claude Code 와 연결', loginItem: '컴퓨터 켤 때 같이 실행', openUserDir: '클라우드 신호 폴더 열기 (~/ClaudePet)', chatAlerts: 'Claude 채팅 답변 알림 설정…', about: 'ClaudePet',
+    noPets: '(펫 없음)', claudeCode: 'Claude Code 와 연결', desktopApp: 'Claude 데스크톱 앱과 연결 (채팅 알림)', loginItem: '컴퓨터 켤 때 같이 실행', openUserDir: '클라우드 신호 폴더 열기 (~/ClaudePet)', chatAlerts: 'Claude 채팅 답변 알림 설정…', about: 'ClaudePet',
   },
   en: {
     changePet: 'Change pet', importGif: 'Add pet from file… (zip · GIF)', openGallery: 'Browse codex-pets.net', installCopied: 'Install copied pet', noCopied: '(copy a pet page link to install it here)', installByLink: 'Install pet from link or name…', addState: 'Add a GIF for a state', openPets: 'Open my pets folder', openCodexPets: 'Open Codex pets folder', refresh: 'Refresh list',
@@ -42,7 +43,7 @@ const MENU_TEXT = {
     look: 'Look at cursor (v2 pets)', preview: 'Preview animations', resetPos: 'Reset position',
     autoStart: 'Auto-start with Claude Code', quitWithSessions: 'Quit when all sessions end',
     openConfig: 'Open config file', openLog: 'Open log', quit: 'Quit', codex: 'Codex', claude: 'Mine', builtin: 'Built-in', extra: 'Extra',
-    noPets: '(no pets)', claudeCode: 'Connect to Claude Code', loginItem: 'Start when I log in', openUserDir: 'Open cloud signal folder (~/ClaudePet)', chatAlerts: 'Set up Claude chat reply alerts…', about: 'ClaudePet',
+    noPets: '(no pets)', claudeCode: 'Connect to Claude Code', desktopApp: 'Connect to Claude desktop app (chat alerts)', loginItem: 'Start when I log in', openUserDir: 'Open cloud signal folder (~/ClaudePet)', chatAlerts: 'Set up Claude chat reply alerts…', about: 'ClaudePet',
   },
 };
 
@@ -74,10 +75,12 @@ if (MAINTENANCE) {
   try {
     if (MAINTENANCE === 'remove') {
       hooksSetup.removeHooks();
-      updateConfig({ claudeCode: null });
+      desktop.unregisterDesktop(); // 지워진 ClaudePet.exe 를 Claude 앱이 계속 띄우려 하지 않게
+      updateConfig({ claudeCode: null, desktopApp: null });
     } else {
       hooksSetup.install();
-      updateConfig({ claudeCode: true });
+      const r = desktop.registerDesktop();
+      updateConfig(r.ok ? { claudeCode: true, desktopApp: true } : { claudeCode: true });
     }
   } catch (e) {
     log('maintenance failed', e.message);
@@ -150,7 +153,12 @@ async function start() {
   loadPet(resolvePet(cfg));
   applyBoot(process.env.CLAUDE_PET_BOOT);
   log(`started pid=${process.pid} port=${cfg.port} pet=${pet && pet.id} packaged=${PACKAGED}`);
-  setTimeout(() => ensureClaudeCodeLink().catch((e) => log('link failed', e.message)), 1500);
+  setTimeout(() => {
+    ensureClaudeCodeLink()
+      .catch((e) => log('link failed', e.message))
+      .then(() => ensureDesktopLink())
+      .catch((e) => log('desktop link failed', e.message));
+  }, 1500);
 }
 
 /** ~/ClaudePet: 클라우드 Claude 와 연결할 때 Claude 앱에서 고르는 폴더 */
@@ -186,6 +194,18 @@ async function setupChatAlerts() {
   fs.copyFileSync(path.join(src, 'pet-chat-alerts.zip'), zipDest);
   const instructions = fs.readFileSync(path.join(src, 'instructions.txt'), 'utf8').trim();
   clipboard.writeText(instructions);
+  // 데스크톱 앱과 연결돼 있으면 대화마다 폴더 허용을 누를 필요가 없음
+  let linked = false;
+  let restart = false;
+  try {
+    const before = desktop.desktopState();
+    if (before !== 'no-app' && before !== 'broken') {
+      if (before !== 'current') { linkDesktop(true, { quiet: true }); restart = true; }
+      linked = desktop.desktopState() === 'current';
+    }
+  } catch (e) {
+    log('chat alerts: desktop link', e.message);
+  }
   const r = await dialog.showMessageBox({
     type: 'info',
     title: 'ClaudePet',
@@ -194,11 +214,17 @@ async function setupChatAlerts() {
       ? '채팅 답변이 끝날 때 펫이 알려주게 하려면 두 가지만 하면 돼요.\n\n'
         + '① 스킬 올리기\nClaude → Customize → Skills → + → Create skill → Upload a skill\n→ ' + zipDest + '\n(Settings 에서 코드 실행이 켜져 있어야 해요)\n\n'
         + '② 지침 붙여넣기\nClaude → Settings → "Instructions for Claude" 칸에 붙여넣기\n(문구는 방금 클립보드에 복사했어요)\n\n'
-        + '그다음 Claude 데스크톱 앱에서 이 PC 에 연결된 대화를 열면, 첫 답변 때 ClaudePet 폴더 접근을 한 번 물어봐요 → 허용.'
+        + (linked
+          ? '③ Claude 데스크톱 앱과도 연결해 뒀어요.' + (restart ? ' Claude 앱을 완전히 종료(트레이 아이콘 → 종료)했다가 다시 켜 주세요.' : '')
+            + '\n그다음부터는 데스크톱 앱에서 이 PC 에 연결된 대화라면 새 대화도 클릭 없이 알림이 켜져요.'
+          : '그다음 Claude 데스크톱 앱에서 이 PC 에 연결된 대화를 열면, 첫 답변 때 ClaudePet 폴더 접근을 한 번 물어봐요 → 허용.')
       : 'Two steps so your pet tells you when a chat reply is done:\n\n'
         + '1) Upload the skill\nClaude → Customize → Skills → + → Create skill → Upload a skill\n→ ' + zipDest + '\n(code execution must be on in Settings)\n\n'
         + '2) Paste the instructions\nClaude → Settings → "Instructions for Claude"\n(the text is already on your clipboard)\n\n'
-        + 'Then open a chat in the Claude desktop app linked to this PC and allow access to the ClaudePet folder once.',
+        + (linked
+          ? '3) ClaudePet is also linked to the Claude desktop app.' + (restart ? ' Fully quit Claude (tray icon → Quit) and open it again.' : '')
+            + '\nAfter that, every chat linked to this PC turns alerts on without any clicks.'
+          : 'Then open a chat in the Claude desktop app linked to this PC and allow access to the ClaudePet folder once.'),
     buttons: ko ? ['스킬 파일 위치 열기', '닫기'] : ['Show skill file', 'Close'],
     defaultId: 0,
     cancelId: 1,
@@ -261,6 +287,72 @@ function linkClaudeCode(on, { quiet = false } = {}) {
     log(`claude code link: ${on ? 'on' : 'off'}`);
   } catch (e) {
     log('claude code link failed', e.message);
+    send('pet:bubble', { text: e.message.slice(0, 80), ms: 7000, important: true });
+  }
+}
+
+/**
+ * Claude 데스크톱 앱 연결(로컬 MCP 서버 등록) 관리.
+ *  - 데스크톱 앱이 없으면 아무것도 안 함
+ *  - 처음: 설치판이면 연결할지 한 번 물어봄 / 경로가 바뀌었으면 조용히 갱신
+ */
+async function ensureDesktopLink() {
+  if (cfg.desktopApp === false) return;
+  const state = desktop.desktopState();
+  if (state === 'no-app' || state === 'broken') return;
+  if (state === 'current') {
+    if (cfg.desktopApp !== true) cfg = updateConfig({ desktopApp: true });
+    return;
+  }
+  if (state === 'outdated' || cfg.desktopApp === true) {
+    linkDesktop(true, { quiet: state === 'outdated' });
+    return;
+  }
+  if (!PACKAGED) return; // 소스판은 메뉴에서 직접 켬
+  const ko = cfg.language !== 'en';
+  const r = await dialog.showMessageBox({
+    type: 'question',
+    title: 'ClaudePet',
+    buttons: ko ? ['연결하기', '나중에'] : ['Connect', 'Later'],
+    defaultId: 0,
+    cancelId: 1,
+    message: ko ? 'Claude 데스크톱 앱과도 연결할까요?' : 'Connect to the Claude desktop app too?',
+    detail: ko
+      ? 'Claude 채팅(데스크톱 앱에서 이 PC 와 연결된 대화)의 답변이 끝날 때, 대화마다 폴더 허용을 누르지 않아도 펫이 알려주게 돼요.\n\n'
+        + '· Claude 앱 설정(claude_desktop_config.json)에 ClaudePet 연결 도구 추가 (기존 파일은 백업, 다른 설정은 그대로)\n'
+        + '· 연결한 뒤 Claude 앱을 완전히 종료(트레이 아이콘 → 종료)했다가 다시 켜 주세요\n\n펫 우클릭 메뉴에서 언제든 끌 수 있어요.'
+      : 'Lets your pet announce Claude chat replies (chats linked to this PC in the desktop app) without allowing folder access in every chat.\n\n'
+        + '· Adds a ClaudePet tool to claude_desktop_config.json (backed up, other settings untouched)\n'
+        + '· Afterwards fully quit Claude (tray icon → Quit) and open it again\n\nYou can turn this off from the menu anytime.',
+  });
+  if (r.response === 0) linkDesktop(true);
+  else cfg = updateConfig({ desktopApp: false });
+}
+
+function linkDesktop(on, { quiet = false } = {}) {
+  const ko = cfg.language !== 'en';
+  try {
+    if (on) {
+      const r = desktop.registerDesktop();
+      if (!r.ok) {
+        send('pet:bubble', { text: ko ? 'Claude 데스크톱 앱을 찾지 못했어요' : 'Claude desktop app not found', ms: 5000, important: true });
+        return;
+      }
+      cfg = updateConfig({ desktopApp: true });
+      if (!quiet) {
+        send('pet:bubble', {
+          text: ko ? 'Claude 앱과 연결했어요! Claude 앱을 다시 켜면 적용돼요' : 'Linked! Restart the Claude app to apply',
+          ms: 8000, important: true,
+        });
+      }
+    } else {
+      desktop.unregisterDesktop();
+      cfg = updateConfig({ desktopApp: false });
+      send('pet:bubble', { text: ko ? 'Claude 데스크톱 앱 연결을 껐어요' : 'Disconnected from the Claude desktop app', ms: 4000, important: true });
+    }
+    log(`claude desktop link: ${on ? 'on' : 'off'}`);
+  } catch (e) {
+    log('claude desktop link failed', e.message);
     send('pet:bubble', { text: e.message.slice(0, 80), ms: 7000, important: true });
   }
 }
@@ -611,6 +703,9 @@ async function control({ cmd, ...args }) {
     case 'open-install':
       openInstallPrompt();
       return {};
+    case 'desktop':
+      if (args.on === true || args.on === false) linkDesktop(args.on);
+      return { state: desktop.desktopState(), files: desktop.configFiles() };
     case 'chat-alerts':
       setupChatAlerts().catch((e) => log('chat alerts', e.message));
       return { zip: path.join(paths.userDir, 'pet-chat-alerts.zip') };
@@ -721,6 +816,10 @@ function buildMenu() {
     { label: t.resetPos, click: () => { if (win) { const s = sizes(); const p = defaultPosition(s); win.setPosition(p.x, p.y); savePosition(); } } },
     { type: 'separator' },
     { label: t.claudeCode, type: 'checkbox', checked: cfg.claudeCode === true, click: (item) => linkClaudeCode(item.checked) },
+    {
+      label: t.desktopApp, type: 'checkbox', checked: cfg.desktopApp === true, enabled: desktop.desktopDirs().length > 0,
+      click: (item) => linkDesktop(item.checked),
+    },
     { label: t.autoStart, type: 'checkbox', checked: cfg.autoStart, click: (item) => { cfg = updateConfig({ autoStart: item.checked }); } },
     ...(PACKAGED && process.platform !== 'linux' ? [{
       label: t.loginItem, type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,

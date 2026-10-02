@@ -8,6 +8,7 @@ const path = require('path');
 const { paths, loadConfig } = require('../src/core/config');
 const { removeHooks } = require('./install');
 const { request } = require('../src/core/client');
+const desktop = require('../src/core/desktop');
 
 async function uninstall({ purge = false } = {}) {
   const out = [];
@@ -17,6 +18,7 @@ async function uninstall({ purge = false } = {}) {
   } catch { /* 꺼져 있음 */ }
 
   out.push(...removeHooks());
+  for (const f of desktop.unregisterDesktop().changed) out.push(`Claude 데스크톱 앱 연결 해제: ${f}`);
   if (purge) {
     fs.rmSync(paths.data, { recursive: true, force: true });
     out.push(`설정·로그 삭제: ${paths.data}`);

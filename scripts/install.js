@@ -210,6 +210,7 @@ if (require.main === module) {
         `  /pet 명령: ${r.commandNote}`,
         `  내 펫 폴더: ${paths.claudePets}`,
         `  설정 파일: ${paths.config} (포트 ${cfg.port})`,
+        '  Claude 데스크톱 앱 채팅 알림을 클릭 없이 쓰려면: npm run pet -- desktop on',
         electronOk ? '' : '\n⚠ Electron 이 아직 없어요. 이 폴더에서 `npm install` 을 먼저 실행하세요.',
         '',
         '이제 Claude Code 를 새로 시작하면 펫이 나타나요. 바로 보려면: npm run pet -- start',

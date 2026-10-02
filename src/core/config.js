@@ -96,7 +96,7 @@ function sanitize(cfg) {
     c[k] = Number.isFinite(n) && n >= 0 ? n : DEFAULTS[k];
   }
   if (!Array.isArray(c.extraPetDirs)) c.extraPetDirs = [];
-  c.claudeCode = c.claudeCode === true ? true : (c.claudeCode === false ? false : null); // null = 아직 안 물어봄
+  for (const k of ['claudeCode', 'desktopApp']) c[k] = c[k] === true ? true : (c[k] === false ? false : null); // null = 아직 안 물어봄
   if (!c.animationDurations || typeof c.animationDurations !== 'object') c.animationDurations = {};
   return c;
 }

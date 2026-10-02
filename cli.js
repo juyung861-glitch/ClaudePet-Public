@@ -30,6 +30,7 @@ const HELP = `ClaudePet — Claude Code 데스크톱 펫
                     GIF/APNG/WebP 로 펫 만들기 (--state 를 주면 그 상태 전용 애니메이션 추가)
   say <문장>        펫이 말하게 하기
   chat-alerts       Claude 채팅 답변 알림 설정 도우미 (스킬 zip 준비 + 지침 문구 복사)
+  desktop [on|off]  Claude 데스크톱 앱 연결 (켜면 채팅 알림에 대화마다 폴더 허용이 필요 없음)
   signal <start|done|wait|error> [메시지]   클라우드 작업 신호 흉내 (inbox 폴더 경유)
   autostart <on|off> 세션 시작 시 자동 실행
   doctor            설치 상태 점검
@@ -221,6 +222,35 @@ async function main() {
       return;
     }
 
+    case 'desktop': {
+      const desktop = require('./src/core/desktop');
+      const want = /^(on|true|1|켜기|켬)$/i.test(arg) ? true : (/^(off|false|0|끄기|끔)$/i.test(arg) ? false : null);
+      if (want !== null) {
+        // 펫이 켜져 있으면 펫 앱이 등록(메뉴 체크 표시도 같이 갱신), 아니면 여기서 직접
+        const running = await health(cfg.port);
+        if (running) await control(cfg, { cmd: 'desktop', on: want });
+        else if (want) {
+          const r = desktop.registerDesktop();
+          if (!r.ok) { console.log('Claude 데스크톱 앱 설정 폴더를 찾지 못했어요. Claude 데스크톱 앱이 설치돼 있나요?'); return; }
+          updateConfig({ desktopApp: true });
+        } else {
+          desktop.unregisterDesktop();
+          updateConfig({ desktopApp: false });
+        }
+      }
+      const state = desktop.desktopState();
+      const text = {
+        'no-app': 'Claude 데스크톱 앱 없음',
+        none: '연결 안 됨 → claude-pet desktop on',
+        outdated: '경로가 예전 것 → claude-pet desktop on',
+        current: '연결됨',
+        broken: '설정 파일을 읽을 수 없음 (JSON 오류)',
+      }[state];
+      console.log(`Claude 데스크톱 앱: ${text}${want !== null && state === 'current' ? '\nClaude 앱을 완전히 종료했다가 다시 켜면 적용돼요.' : ''}`);
+      for (const f of desktop.configFiles()) console.log(`  ${f}`);
+      return;
+    }
+
     case 'say': {
       if (!(await ensureRunning(cfg))) return;
       await control(cfg, { cmd: 'say', text: arg || '안녕!' });
@@ -248,6 +278,10 @@ async function main() {
       lines.push(`${bin ? '✓' : '✗'} 실행 파일 ${bin ? (PACKAGED ? `설치판 ${require('./package.json').version}` : 'Electron 설치됨') : '없음 → 앱 폴더에서 npm install'}`);
       lines.push(`  클라우드 신호 폴더: ${paths.inbox}`);
       lines.push(`${hooksInstalled() ? '✓' : '✗'} Claude Code 훅 ${hooksInstalled() ? '설치됨' : (PACKAGED ? '없음 → 펫 우클릭 → Claude Code 와 연결' : '없음 → npm run setup')}`);
+      const dState = require('./src/core/desktop').desktopState();
+      if (dState !== 'no-app') {
+        lines.push(`${dState === 'current' ? '✓' : '·'} Claude 데스크톱 앱 ${dState === 'current' ? '연결됨 (채팅 알림 클릭 없이)' : '연결 안 됨 → claude-pet desktop on'}`);
+      }
       const cmdFile = path.join(paths.claude, 'commands', 'pet.md');
       lines.push(`${fs.existsSync(cmdFile) ? '✓' : '·'} /pet 명령 ${fs.existsSync(cmdFile) ? '설치됨' : '없음'}`);
       const { pets, problems } = listPets(cfg);

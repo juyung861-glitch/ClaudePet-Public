@@ -28,11 +28,12 @@ Codex 펫 패키지와 호환돼서 [codex-pets.net](https://codex-pets.net) 같
 1. [**Releases**](https://github.com/juyung861-glitch/ClaudePet-Public/releases/latest) 에서 `ClaudePet-Setup-<버전>.exe` 를 받아 실행
    - "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행** (코드 서명이 없는 개인 프로젝트라 뜨는 경고예요)
 2. 펫이 나타나고 **"Claude Code 와 연결할까요?"** 를 물으면 **연결하기**
+   - Claude 데스크톱 앱이 깔려 있으면 **"Claude 데스크톱 앱과도 연결할까요?"** 도 물어봐요 → **연결하기** 후 Claude 앱을 한 번 껐다 켜기 ([채팅 답변 알림](#claude-채팅-답변-알림-선택)용)
 3. 끝! Node.js 나 npm 은 필요 없어요.
 
 - 설치 위치 `%LOCALAPPDATA%\Programs\ClaudePet` (관리자 권한 불필요), 바탕화면·시작 메뉴 바로가기
 - 컴퓨터 켤 때 같이 실행: 펫 우클릭 → **컴퓨터 켤 때 같이 실행**
-- 지우기: Windows 설정 → 앱 → ClaudePet 제거 (Claude Code 설정에서 ClaudePet 훅만 깔끔하게 빠져요)
+- 지우기: Windows 설정 → 앱 → ClaudePet 제거 (Claude Code 훅과 Claude 데스크톱 앱 연결만 깔끔하게 빠져요)
 
 ### 소스에서 (macOS · Linux · 개발용)
 
@@ -168,18 +169,21 @@ v1 은 1536×1872(8열×9행), v2 는 1536×2288(8열×11행), 셀은 192×208 �
 ## Claude 채팅 답변 알림 (선택)
 
 Claude Code 말고 **Claude 앱의 일반 채팅**에서도, 답변이 끝나면 펫이 "답변이 나왔어요! ✓" 하고 알려줄 수 있어요.
-채팅은 클라우드에서 돌아서 PC 의 훅이 울리지 않으니, Claude 가 PC 의 `~/ClaudePet/inbox/` 폴더에 신호를 남기는 방식이에요.
+채팅은 클라우드에서 돌아서 PC 의 훅이 울리지 않으니, 채팅 쪽 Claude 가 PC 의 펫에게 신호를 보내게 하는 방식이에요.
 
 **설정 (한 번만)** — 펫 우클릭 → **Claude 채팅 답변 알림 설정…** 을 누르면 아래 준비를 대신 해 줘요.
 
 1. **스킬 올리기**: Claude → Customize → Skills → **+** → Create skill → Upload a skill → `~/ClaudePet/pet-chat-alerts.zip`
    (파일은 [`extras/chat-alerts/pet-chat-alerts.zip`](extras/chat-alerts/pet-chat-alerts.zip) 에도 있어요. Settings 에서 코드 실행이 켜져 있어야 해요)
 2. **지침 붙여넣기**: Claude → Settings → **Instructions for Claude** 에 [`extras/chat-alerts/instructions.txt`](extras/chat-alerts/instructions.txt) 내용을 붙여넣기 (메뉴를 누르면 클립보드에 복사돼요)
+3. **Claude 데스크톱 앱과 연결** (1.3 부터): 펫 우클릭 → **Claude 데스크톱 앱과 연결 (채팅 알림)** 이 켜져 있으면 끝. 처음 켠 뒤에는 Claude 앱을 **완전히 종료**(트레이 아이콘 → 종료)했다가 다시 켜 주세요.
 
-**쓰는 법** — Claude 데스크톱 앱에서 **이 PC 에 연결된 대화**를 열면, 첫 답변 때 `ClaudePet` 폴더 접근을 한 번 물어봐요 → 허용. 그 대화에서는 메시지를 보내면 펫이 "작업 중", 답변이 끝나면 "답변이 나왔어요! ✓" 해요.
+**쓰는 법** — Claude 데스크톱 앱에서 **이 PC 에 연결된 대화**를 열면 끝이에요. 새 대화도 첫 답변 때 알림이 저절로 켜지고, 그다음부터 메시지를 보내면 펫이 "작업 중", 답변이 끝나면 "답변이 나왔어요! ✓" 해요.
 
-- 폴더 권한은 대화마다 따로라 새 대화마다 한 번씩 물어봐요.
+- 3 을 켜면 ClaudePet 이 Claude 데스크톱 앱 설정(`claude_desktop_config.json`)에 작은 연결 도구(로컬 MCP 서버 `claudepet`)를 등록해요. 기존 파일은 `.claudepet-backup` 으로 백업하고 다른 설정은 건드리지 않아요. 이 도구가 할 수 있는 건 펫에게 상태를 알리는 것뿐이에요.
+- 3 을 끄면(또는 1.2 이하) 예전처럼 `~/ClaudePet/inbox/` 폴더로 신호를 보내요. 이때는 대화마다 `ClaudePet` 폴더 접근을 한 번씩 허용해야 해요.
 - PC 에 연결되지 않은 대화(휴대폰·웹)에서는 아무 일도 안 일어나요.
+- 터미널: `claude-pet desktop on|off` 로 켜고 끄고, `claude-pet desktop` 으로 상태를 볼 수 있어요.
 - 신호 형식을 직접 쓰고 싶다면: `{"event":"UserPromptSubmit","stale_ms":3600000}` (작업 중), `{"event":"Stop","message":"한 줄"}` (끝). `claude-pet signal done 끝났다!` 로 시험해 볼 수 있어요.
 
 ---
@@ -201,6 +205,7 @@ Claude Code 말고 **Claude 앱의 일반 채팅**에서도, 답변이 끝나면
 | `port` | `47321` | 훅↔펫 통신 포트 (127.0.0.1 전용) |
 | `extraPetDirs` | `[]` | 펫을 더 찾을 폴더 |
 | `animationDurations` | `{}` | 프레임 시간 덮어쓰기, 예: `{"idle": [1200,500,500,600,600,1500]}` |
+| `desktopApp` | `null` | Claude 데스크톱 앱 연결 (`null` = 아직 안 물어봄) |
 
 ## 동작 원리
 
@@ -224,6 +229,7 @@ Claude Code ──(훅: SessionStart · PreToolUse · Stop …)──▶ hook.js
 | --- | --- |
 | 펫이 안 나타남 | `/pet doctor` (또는 `claude-pet doctor`) 결과 확인 |
 | Claude Code 에 반응이 없음 | 펫 우클릭 → **Claude Code 와 연결** 이 켜져 있는지 확인 |
+| 채팅에서 대화마다 폴더 허용을 물어봄 | 펫 우클릭 → **Claude 데스크톱 앱과 연결** 을 켜고 Claude 앱을 완전히 종료했다가 다시 켜기 |
 | 소스판 폴더를 옮긴 뒤 반응 없음 | `npm run setup` 다시 실행 |
 | 포트 충돌 | `config.json` 의 `port` 를 바꾸고 펫 재시작 |
 | 리눅스에서 배경이 검게 보임 | 투명 창을 지원하는 컴포지터가 필요해요 (GNOME · KDE 등) |
@@ -235,7 +241,7 @@ Claude Code ──(훅: SessionStart · PreToolUse · Stop …)──▶ hook.js
 ## 개발
 
 ```bash
-npm test             # 상태 엔진 · 펫 로더 · 설치/제거 · 훅→서버 · GIF/갤러리 테스트
+npm test             # 상태 엔진 · 펫 로더 · 설치/제거 · 훅→서버 · GIF/갤러리 · MCP 테스트
 npm start            # 펫 실행
 npm run dist:win     # Windows 설치 파일 (dist/ClaudePet-Setup-x.y.z.exe)
 ```
@@ -246,6 +252,7 @@ npm run dist:win     # Windows 설치 파일 (dist/ClaudePet-Setup-x.y.z.exe)
 ClaudePet/
 ├── hook.js              Claude Code 훅 진입점
 ├── cli.js               /pet 명령 · 터미널 CLI
+├── mcp.js               Claude 데스크톱 앱용 로컬 MCP 서버 (채팅 답변 알림)
 ├── scripts/             Claude Code 훅 설치 · 제거
 ├── src/main.js          Electron 메인 (창 · 트레이 · 메뉴 · 로컬 서버)
 ├── src/renderer/        스프라이트 재생 · 클릭 통과 · 드래그 · 말풍선
