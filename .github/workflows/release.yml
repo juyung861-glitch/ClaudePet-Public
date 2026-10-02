@@ -1,0 +1,37 @@
+name: Release
+
+# v1.2.3 같은 태그를 올리면 Windows 설치 파일을 만들어 Releases 에 올려요
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npx electron-builder --win --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClaudePet-Setup
+          path: dist/*.exe
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/*.exe
+          generate_release_notes: true
+          body: |
+            ## 설치
+            1. 아래 `ClaudePet-Setup-*.exe` 를 받아 실행하세요.
+            2. "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행** (코드 서명이 없는 개인 프로젝트라 뜨는 경고예요).
+            3. 펫이 나타나고 "Claude Code 와 연결할까요?" 를 물으면 **연결하기**.
+
+            Node.js 없이 바로 동작해요. 자세한 사용법은 [README](https://github.com/juyung861-glitch/ClaudePet-Public#readme) 를 보세요.
