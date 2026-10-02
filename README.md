@@ -13,6 +13,7 @@ Codex 펫 패키지와 호환돼서 [codex-pets.net](https://codex-pets.net) 같
 
 - **Claude Code 상태에 반응** — 터미널, VS Code, Claude 데스크톱 앱의 Code 탭 등 Claude Code 가 도는 곳이면 어디서든
 - **일 끝나면 알려줘요** — "다 했어요! ✓", "허락이 필요해요!" 말풍선으로 다른 창을 보고 있어도 바로 알 수 있어요
+- **Claude 앱 채팅 답변도 알림 (선택)** — 클라우드 채팅에서 답변이 끝나도 펫이 알려줘요 ([설정 방법](#claude-채팅-답변-알림-선택))
 - **펫 마음대로 바꾸기** — codex-pets.net 링크 붙여넣기 한 번으로 설치, 가진 GIF 로 새 펫 만들기
 - **방해하지 않는 창** — 투명·항상 위, 펫 모양 밖은 클릭이 아래 창으로 통과, 눌러도 터미널 포커스를 안 뺏어요
 - **개인정보 안전** — 프롬프트·명령어·파일 내용은 펫으로 보내지 않아요
@@ -164,18 +165,22 @@ v1 은 1536×1872(8열×9행), v2 는 1536×2288(8열×11행), 셀은 192×208 �
 
 ---
 
-## Claude 채팅과 연결하기 (선택)
+## Claude 채팅 답변 알림 (선택)
 
-claude.ai · Claude 데스크톱 앱의 일반 채팅은 클라우드에서 돌아서 PC 의 Claude Code 훅이 울리지 않아요.
-대신 대화가 PC 에 연결돼 있으면, Claude 가 `~/ClaudePet/inbox/` 폴더에 신호 파일을 남겨 펫을 움직일 수 있어요.
-그 대화에 `~/ClaudePet` 폴더를 연결하고 "답변 끝나면 펫한테 알려줘" 라고 부탁해 보세요. (펫 우클릭 → **클라우드 신호 폴더 열기**)
+Claude Code 말고 **Claude 앱의 일반 채팅**에서도, 답변이 끝나면 펫이 "답변이 나왔어요! ✓" 하고 알려줄 수 있어요.
+채팅은 클라우드에서 돌아서 PC 의 훅이 울리지 않으니, Claude 가 PC 의 `~/ClaudePet/inbox/` 폴더에 신호를 남기는 방식이에요.
 
-| 신호 파일 내용 | 펫 |
-| --- | --- |
-| `{"event":"UserPromptSubmit","stale_ms":3600000}` | 작업 중 (최대 1시간 유지) |
-| `{"event":"Stop","message":"한 줄 요약"}` | 그 문장을 말하며 "다 했어요" |
+**설정 (한 번만)** — 펫 우클릭 → **Claude 채팅 답변 알림 설정…** 을 누르면 아래 준비를 대신 해 줘요.
 
-`claude-pet signal done 끝났다!` 처럼 직접 시험할 수 있어요. 펫은 신호를 읽자마자 지우고, 10분이 넘은 신호는 무시해요.
+1. **스킬 올리기**: Claude → Customize → Skills → **+** → Create skill → Upload a skill → `~/ClaudePet/pet-chat-alerts.zip`
+   (파일은 [`extras/chat-alerts/pet-chat-alerts.zip`](extras/chat-alerts/pet-chat-alerts.zip) 에도 있어요. Settings 에서 코드 실행이 켜져 있어야 해요)
+2. **지침 붙여넣기**: Claude → Settings → **Instructions for Claude** 에 [`extras/chat-alerts/instructions.txt`](extras/chat-alerts/instructions.txt) 내용을 붙여넣기 (메뉴를 누르면 클립보드에 복사돼요)
+
+**쓰는 법** — Claude 데스크톱 앱에서 **이 PC 에 연결된 대화**를 열면, 첫 답변 때 `ClaudePet` 폴더 접근을 한 번 물어봐요 → 허용. 그 대화에서는 메시지를 보내면 펫이 "작업 중", 답변이 끝나면 "답변이 나왔어요! ✓" 해요.
+
+- 폴더 권한은 대화마다 따로라 새 대화마다 한 번씩 물어봐요.
+- PC 에 연결되지 않은 대화(휴대폰·웹)에서는 아무 일도 안 일어나요.
+- 신호 형식을 직접 쓰고 싶다면: `{"event":"UserPromptSubmit","stale_ms":3600000}` (작업 중), `{"event":"Stop","message":"한 줄"}` (끝). `claude-pet signal done 끝났다!` 로 시험해 볼 수 있어요.
 
 ---
 
@@ -248,6 +253,7 @@ ClaudePet/
 ├── src/import.js        GIF → 펫 (src/importer/ 숨은 창에서 디코딩)
 ├── src/prompt/          링크로 펫 받기 창
 ├── build/               설치 파일 설정 · 아이콘
+├── extras/chat-alerts/  Claude 채팅 답변 알림용 스킬 · 지침 문구
 ├── pets/mochi/          기본 펫
 ├── tools/make_mochi.py  기본 펫 생성기
 └── test/

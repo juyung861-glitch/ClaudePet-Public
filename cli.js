@@ -29,6 +29,7 @@ const HELP = `ClaudePet — Claude Code 데스크톱 펫
   import <파일> [--name 이름] [--id 펫id] [--state 상태] [--keep-bg]
                     GIF/APNG/WebP 로 펫 만들기 (--state 를 주면 그 상태 전용 애니메이션 추가)
   say <문장>        펫이 말하게 하기
+  chat-alerts       Claude 채팅 답변 알림 설정 도우미 (스킬 zip 준비 + 지침 문구 복사)
   signal <start|done|wait|error> [메시지]   클라우드 작업 신호 흉내 (inbox 폴더 경유)
   autostart <on|off> 세션 시작 시 자동 실행
   doctor            설치 상태 점검
@@ -210,6 +211,13 @@ async function main() {
       const event = map[(kind || 'done').toLowerCase()] || kind;
       const f = writeSignal({ event, ...(msg.length ? { message: msg.join(' ').slice(0, 80) } : {}), ...(event === 'UserPromptSubmit' ? { stale_ms: 3600000 } : {}) });
       console.log(`신호를 남겼어요: ${event} → ${path.relative(INBOX_DIR, f)} (펫이 켜져 있으면 바로 반응해요)`);
+      return;
+    }
+
+    case 'chat-alerts': case 'chat': {
+      if (!(await ensureRunning(cfg))) return;
+      const r = await control(cfg, { cmd: 'chat-alerts' });
+      console.log(`설정 안내 창을 열었어요. 스킬 파일: ${r.zip} · 지침 문구는 클립보드에 복사했어요.`);
       return;
     }
 

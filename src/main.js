@@ -33,7 +33,7 @@ const MENU_TEXT = {
     look: '마우스 바라보기 (v2 펫)', preview: '동작 미리보기', resetPos: '위치 초기화',
     autoStart: 'Claude Code 시작 시 자동 실행', quitWithSessions: '세션이 모두 끝나면 같이 종료',
     openConfig: '설정 파일 열기', openLog: '로그 열기', quit: '종료', codex: 'Codex', claude: '내 펫', builtin: '기본', extra: '추가',
-    noPets: '(펫 없음)', claudeCode: 'Claude Code 와 연결', loginItem: '컴퓨터 켤 때 같이 실행', openUserDir: '클라우드 신호 폴더 열기 (~/ClaudePet)', about: 'ClaudePet',
+    noPets: '(펫 없음)', claudeCode: 'Claude Code 와 연결', loginItem: '컴퓨터 켤 때 같이 실행', openUserDir: '클라우드 신호 폴더 열기 (~/ClaudePet)', chatAlerts: 'Claude 채팅 답변 알림 설정…', about: 'ClaudePet',
   },
   en: {
     changePet: 'Change pet', importGif: 'Add pet from file… (zip · GIF)', openGallery: 'Browse codex-pets.net', installCopied: 'Install copied pet', noCopied: '(copy a pet page link to install it here)', installByLink: 'Install pet from link or name…', addState: 'Add a GIF for a state', openPets: 'Open my pets folder', openCodexPets: 'Open Codex pets folder', refresh: 'Refresh list',
@@ -42,7 +42,7 @@ const MENU_TEXT = {
     look: 'Look at cursor (v2 pets)', preview: 'Preview animations', resetPos: 'Reset position',
     autoStart: 'Auto-start with Claude Code', quitWithSessions: 'Quit when all sessions end',
     openConfig: 'Open config file', openLog: 'Open log', quit: 'Quit', codex: 'Codex', claude: 'Mine', builtin: 'Built-in', extra: 'Extra',
-    noPets: '(no pets)', claudeCode: 'Connect to Claude Code', loginItem: 'Start when I log in', openUserDir: 'Open cloud signal folder (~/ClaudePet)', about: 'ClaudePet',
+    noPets: '(no pets)', claudeCode: 'Connect to Claude Code', loginItem: 'Start when I log in', openUserDir: 'Open cloud signal folder (~/ClaudePet)', chatAlerts: 'Set up Claude chat reply alerts…', about: 'ClaudePet',
   },
 };
 
@@ -172,6 +172,38 @@ function ensureUserDir() {
   } catch (e) {
     log('user dir', e.message);
   }
+}
+
+/**
+ * Claude 채팅(claude.ai · 데스크톱 앱) 답변 알림 설정 도우미.
+ * 스킬 zip 을 ~/ClaudePet 에 두고, 'Instructions for Claude' 에 넣을 문구를 클립보드에 복사한 뒤 순서를 안내한다.
+ */
+async function setupChatAlerts() {
+  const ko = cfg.language !== 'en';
+  ensureUserDir();
+  const src = path.join(__dirname, '..', 'extras', 'chat-alerts');
+  const zipDest = path.join(paths.userDir, 'pet-chat-alerts.zip');
+  fs.copyFileSync(path.join(src, 'pet-chat-alerts.zip'), zipDest);
+  const instructions = fs.readFileSync(path.join(src, 'instructions.txt'), 'utf8').trim();
+  clipboard.writeText(instructions);
+  const r = await dialog.showMessageBox({
+    type: 'info',
+    title: 'ClaudePet',
+    message: ko ? 'Claude 채팅 답변 알림 설정' : 'Set up Claude chat reply alerts',
+    detail: ko
+      ? '채팅 답변이 끝날 때 펫이 알려주게 하려면 두 가지만 하면 돼요.\n\n'
+        + '① 스킬 올리기\nClaude → Customize → Skills → + → Create skill → Upload a skill\n→ ' + zipDest + '\n(Settings 에서 코드 실행이 켜져 있어야 해요)\n\n'
+        + '② 지침 붙여넣기\nClaude → Settings → "Instructions for Claude" 칸에 붙여넣기\n(문구는 방금 클립보드에 복사했어요)\n\n'
+        + '그다음 Claude 데스크톱 앱에서 이 PC 에 연결된 대화를 열면, 첫 답변 때 ClaudePet 폴더 접근을 한 번 물어봐요 → 허용.'
+      : 'Two steps so your pet tells you when a chat reply is done:\n\n'
+        + '1) Upload the skill\nClaude → Customize → Skills → + → Create skill → Upload a skill\n→ ' + zipDest + '\n(code execution must be on in Settings)\n\n'
+        + '2) Paste the instructions\nClaude → Settings → "Instructions for Claude"\n(the text is already on your clipboard)\n\n'
+        + 'Then open a chat in the Claude desktop app linked to this PC and allow access to the ClaudePet folder once.',
+    buttons: ko ? ['스킬 파일 위치 열기', '닫기'] : ['Show skill file', 'Close'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (r.response === 0) shell.showItemInFolder(zipDest);
 }
 
 /**
@@ -579,6 +611,9 @@ async function control({ cmd, ...args }) {
     case 'open-install':
       openInstallPrompt();
       return {};
+    case 'chat-alerts':
+      setupChatAlerts().catch((e) => log('chat alerts', e.message));
+      return { zip: path.join(paths.userDir, 'pet-chat-alerts.zip') };
     case 'search':
       return await gallery.searchGallery(args.q, { fetchImpl: (url, opts) => net.fetch(url, opts) });
     case 'import': {
@@ -691,6 +726,7 @@ function buildMenu() {
       label: t.loginItem, type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,
       click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }),
     }] : []),
+    { label: t.chatAlerts, click: () => setupChatAlerts().catch((e) => log('chat alerts', e.message)) },
     { label: t.openUserDir, click: () => { ensureUserDir(); shell.openPath(paths.userDir); } },
     { label: t.quitWithSessions, type: 'checkbox', checked: cfg.quitWhenNoSessions, click: (item) => { cfg = updateConfig({ quitWhenNoSessions: item.checked }); } },
     { label: t.openConfig, click: () => shell.openPath(paths.config) },
