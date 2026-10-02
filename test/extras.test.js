@@ -11,7 +11,9 @@ test('채팅 알림 스킬 zip 이 SKILL.md 원본과 같고 업로드 규격에
   const src = fs.readFileSync(path.join(dir, 'pet-chat-alerts', 'SKILL.md'));
   const files = readZip(fs.readFileSync(path.join(dir, 'pet-chat-alerts.zip')));
   assert.deepEqual([...files.keys()], ['pet-chat-alerts/SKILL.md'], '폴더 이름 = 스킬 이름, SKILL.md 하나');
-  assert.ok(files.get('pet-chat-alerts/SKILL.md').equals(src), 'zip 이 원본과 다르면 extras/chat-alerts 에서 zip 을 다시 만들 것');
+  // Windows 체크아웃에서 줄바꿈이 CRLF 로 바뀌어도 내용 비교는 같게
+  const lf = (b) => b.toString('utf8').replace(/\r\n/g, '\n');
+  assert.equal(lf(files.get('pet-chat-alerts/SKILL.md')), lf(src), 'zip 이 원본과 다르면 extras/chat-alerts 에서 zip 을 다시 만들 것');
   const front = src.toString('utf8').split('---')[1];
   assert.match(front, /^name: pet-chat-alerts$/m);
   assert.match(front, /^description: .+/m);
