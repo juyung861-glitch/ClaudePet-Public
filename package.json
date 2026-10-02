@@ -1,0 +1,108 @@
+{
+  "name": "claudepet",
+  "version": "1.1.0",
+  "description": "Claude Code 작업 상태에 반응하는 데스크톱 펫 (Codex 펫 패키지 호환)",
+  "main": "src/main.js",
+  "private": true,
+  "license": "MIT",
+  "author": "juyung861-glitch",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/juyung861-glitch/ClaudePet-Public.git"
+  },
+  "homepage": "https://github.com/juyung861-glitch/ClaudePet-Public",
+  "bugs": {
+    "url": "https://github.com/juyung861-glitch/ClaudePet-Public/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "desktop-pet",
+    "codex-pets",
+    "electron",
+    "hooks"
+  ],
+  "scripts": {
+    "start": "electron .",
+    "setup": "node scripts/install.js",
+    "unsetup": "node scripts/uninstall.js",
+    "pet": "node cli.js",
+    "test": "node --test test/*.test.js",
+    "make-pet": "python3 tools/make_mochi.py",
+    "dist:win": "electron-builder --win --x64",
+    "dist:linux": "electron-builder --linux dir"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "resedit": "^3.1.0"
+  },
+  "build": {
+    "appId": "dev.claude-pet",
+    "productName": "ClaudePet",
+    "copyright": "MIT License",
+    "asar": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "package.json",
+      "hook.js",
+      "cli.js",
+      "src/**/*",
+      "scripts/install.js",
+      "scripts/uninstall.js",
+      "pets/**/*",
+      "assets/**/*",
+      "!**/*.test.js"
+    ],
+    "afterPack": "build/afterPack.js",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "executableName": "ClaudePet",
+      "signAndEditExecutable": false,
+      "extraFiles": [
+        {
+          "from": "build/win",
+          "to": ".",
+          "filter": [
+            "*.cmd"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "ClaudePet-Setup-${version}.exe",
+      "shortcutName": "ClaudePet",
+      "uninstallDisplayName": "ClaudePet",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "include": "build/installer.nsh",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "target": "dir",
+      "executableName": "claudepet",
+      "icon": "build/icon.png",
+      "category": "Utility"
+    },
+    "publish": null
+  }
+}

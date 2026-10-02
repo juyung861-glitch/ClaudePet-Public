@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'self'; script-src 'self'">
+  <title>ClaudePet</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="stage">
+    <div id="bubble" role="status" aria-live="polite"></div>
+    <div id="pet-wrap">
+      <canvas id="pet" aria-label="desktop pet"></canvas>
+      <div id="badge" hidden></div>
+      <div id="chip" hidden aria-hidden="true"></div>
+    </div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

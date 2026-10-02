@@ -1,0 +1,118 @@
+:root {
+  --ink: #2b2420;
+  --line: #3b2a26;
+  --paper: #fffdf8;
+  --badge: #d97757;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+}
+
+#stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+#pet-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+}
+
+#pet {
+  display: block;
+  cursor: grab;
+}
+
+#pet.dragging {
+  cursor: grabbing;
+}
+
+#badge {
+  position: absolute;
+  top: 4px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: var(--badge);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  border: 1.5px solid var(--line);
+}
+
+#chip {
+  position: absolute;
+  left: -4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--paper);
+  border: 1.5px solid var(--line);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+  pointer-events: none;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
+
+#bubble {
+  position: absolute;
+  left: 50%;
+  max-width: calc(100% - 12px);
+  box-sizing: border-box;
+  padding: 5px 10px;
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1.5px solid var(--line);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translate(-50%, 6px) scale(0.96);
+  transition: opacity 160ms ease, transform 160ms ease;
+  pointer-events: none;
+}
+
+#bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 9px;
+  height: 9px;
+  background: var(--paper);
+  border-right: 1.5px solid var(--line);
+  border-bottom: 1.5px solid var(--line);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+#bubble.show {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #bubble { transition: none; }
+}

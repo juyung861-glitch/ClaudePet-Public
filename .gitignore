@@ -1,0 +1,5 @@
+node_modules/
+dist/
+inbox/
+*.log
+.DS_Store
