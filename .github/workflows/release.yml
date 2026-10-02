@@ -1,37 +1,69 @@
 name: Release
 
-# v1.2.3 같은 태그를 올리면 Windows 설치 파일을 만들어 Releases 에 올려요
+# package.json 의 version 을 올려서 main 에 푸시하면, 그 버전의 릴리스가 아직 없을 때
+# Windows 설치 파일을 만들어 Releases 에 올려요. (Actions 탭에서 수동 실행도 가능)
 on:
   push:
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   windows:
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
+
+      - name: 버전 확인
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "v$VERSION 릴리스가 이미 있어서 건너뜀"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.ver.outputs.skip != 'true'
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
-      - run: npx electron-builder --win --x64 --publish never
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ClaudePet-Setup
-          path: dist/*.exe
+
+      - name: 테스트
+        if: steps.ver.outputs.skip != 'true'
+        run: node --test test/*.test.js
+
+      - name: 설치 파일 빌드
+        if: steps.ver.outputs.skip != 'true'
+        run: |
+          npm install --no-audit --no-fund
+          npx electron-builder --win --x64 --publish never
+
       - uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: steps.ver.outputs.skip != 'true'
         with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ClaudePet ${{ steps.ver.outputs.tag }}
           files: dist/*.exe
-          generate_release_notes: true
           body: |
             ## 설치
             1. 아래 `ClaudePet-Setup-*.exe` 를 받아 실행하세요.
             2. "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행** (코드 서명이 없는 개인 프로젝트라 뜨는 경고예요).
             3. 펫이 나타나고 "Claude Code 와 연결할까요?" 를 물으면 **연결하기**.
 
-            Node.js 없이 바로 동작해요. 자세한 사용법은 [README](https://github.com/juyung861-glitch/ClaudePet-Public#readme) 를 보세요.
+            Node.js 없이 바로 동작해요. 사용법은 [README](https://github.com/juyung861-glitch/ClaudePet-Public#readme) 를 보세요.
