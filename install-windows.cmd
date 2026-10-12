@@ -10,7 +10,7 @@ if errorlevel 1 (
   goto :end
 )
 
-echo [1/3] Electron 내려받는 중... ^(처음 한 번, 1~2분^)
+echo [1/4] Electron 내려받는 중... ^(처음 한 번, 1~2분^)
 call npm.cmd install --no-audit --no-fund
 if errorlevel 1 (
   echo [X] npm install 실패. 위 오류를 확인하세요.
@@ -22,16 +22,21 @@ node -e "require('electron')" >nul 2>nul
 if errorlevel 1 node node_modules\electron\install.js
 
 echo.
-echo [2/3] Claude Code 에 훅과 /pet 명령 등록 중...
+echo [2/4] Claude Code 에 훅과 /pet 명령 등록 중...
 node scripts\install.js
 if errorlevel 1 goto :end
 
 echo.
-echo [3/3] 펫 띄우는 중...
+echo [3/4] Claude 데스크톱 앱 연결 중... ^(채팅 답변 알림용, 앱이 없으면 건너뜀^)
+node cli.js desktop on
+
+echo.
+echo [4/4] 펫 띄우는 중...
 node cli.js start
 
 echo.
 echo 완료! 이제 Claude Code 를 시작하면 펫이 자동으로 나타나요.
+echo Claude 데스크톱 앱이 켜져 있었다면 완전히 종료^(트레이 아이콘 - 종료^)했다가 다시 켜 주세요.
 echo 이 폴더를 다른 곳으로 옮기면 이 파일을 한 번 더 실행하세요.
 
 :end

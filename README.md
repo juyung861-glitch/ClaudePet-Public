@@ -44,10 +44,11 @@ git clone https://github.com/juyung861-glitch/ClaudePet-Public.git
 cd ClaudePet-Public
 npm install          # Electron 등
 npm run setup        # Claude Code 에 훅 · /pet 명령 등록
-npm start            # 펫 실행
+npm start            # 펫 실행 (Claude 데스크톱 앱이 있으면 채팅 알림용 연결도 한 번 물어봐요)
 ```
 
-Windows 에서 소스로 쓸 땐 `install-windows.cmd` 를 더블클릭해도 돼요.
+Windows 에서 소스로 쓸 땐 `install-windows.cmd` 를 더블클릭해도 돼요 (Claude Code 훅 + Claude 데스크톱 앱 연결까지 한 번에).
+PC 를 바꿨다면 새 PC 에서 설치(또는 `install-windows.cmd`)를 다시 하고, Claude 앱을 완전히 종료했다가 켠 뒤 대화를 새 PC 에 연결하세요.
 PowerShell 에서 `npm.ps1 파일을 로드할 수 없습니다` 오류가 나면 `npm` 대신 `npm.cmd` 를 쓰세요.
 
 ---

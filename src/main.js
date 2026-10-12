@@ -308,7 +308,7 @@ async function ensureDesktopLink() {
     linkDesktop(true, { quiet: state === 'outdated' });
     return;
   }
-  if (!PACKAGED) return; // 소스판은 메뉴에서 직접 켬
+  // 소스판도 같이 물어봄 (예전엔 메뉴에서 직접 켜야 해서 새 PC 에서 채팅 알림이 안 되는 일이 있었음)
   const ko = cfg.language !== 'en';
   const r = await dialog.showMessageBox({
     type: 'question',
