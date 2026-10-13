@@ -64,6 +64,19 @@ async function callTool(name, args = {}) {
   return 'ClaudePet 꺼져 있음';
 }
 
+/** Claude 앱이 켜졌는데 펫이 꺼져 있으면 띄운다 (설정에서 자동 실행을 껐거나 CLAUDE_PET_NO_AUTOLAUNCH 가 있으면 안 함) */
+let bootJob = null;
+async function ensurePet() {
+  try {
+    const cfg = loadConfig();
+    if (!cfg.autoStart || process.env.CLAUDE_PET_NO_AUTOLAUNCH) return;
+    if (await health(cfg.port, 600)) return;
+    launchApp(null);
+  } catch (e) {
+    log('mcp ensurePet', e.message);
+  }
+}
+
 // ---- JSON-RPC over stdio (줄 단위) -------------------------------------------------
 function send(msg) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', ...msg })}\n`);
@@ -76,6 +89,7 @@ async function handle(msg) {
     let result;
     switch (method) {
       case 'initialize':
+        bootJob = ensurePet(); // Claude 앱이 켜질 때 이 서버를 같이 띄우므로, 그때 펫도 켠다
         result = {
           protocolVersion: (params && params.protocolVersion) || '2025-06-18',
           capabilities: { tools: { listChanged: false } },
@@ -136,7 +150,7 @@ if (require.main === module) {
     }
   });
   // 입력이 닫혀도 처리 중인 요청의 응답은 마저 보내고 끝냄
-  rl.on('close', () => Promise.allSettled([...pending]).then(() => process.exit(0)));
+  rl.on('close', () => Promise.allSettled([...pending, bootJob]).then(() => process.exit(0)));
 }
 
 module.exports = { TOOLS, EVENTS, handle, callTool };

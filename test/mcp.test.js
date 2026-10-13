@@ -13,6 +13,7 @@ process.env.CLAUDE_CONFIG_DIR = path.join(tmp, '.claude');
 process.env.CLAUDE_PET_HOME = path.join(tmp, 'pet-home');
 process.env.CLAUDE_PET_PORT = String(PORT);
 process.env.CLAUDE_PET_DESKTOP_DIR = path.join(tmp, 'Claude');
+process.env.CLAUDE_PET_NO_AUTOLAUNCH = '1'; // 테스트가 진짜 펫을 띄우지 않게
 
 const { createServer, listen } = require('../src/core/server');
 const desktop = require('../src/core/desktop');
