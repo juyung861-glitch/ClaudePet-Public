@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('pet', {
   onBubble: listen('pet:bubble'),
   onScale: listen('pet:scale'),
   onLook: listen('pet:look'),
+  onHitTest: listen('pet:hittest'),
   ready: () => ipcRenderer.send('renderer:ready'),
   setIgnore: (ignore) => ipcRenderer.send('mouse:ignore', !!ignore),
   dragStart: () => ipcRenderer.send('drag:start'),

@@ -5,8 +5,9 @@
 //   도구: pet_signal(event, message?)  ·  pet_status()
 // 실행: node mcp.js  (설치판: ELECTRON_RUN_AS_NODE=1 ClaudePet.exe resources/app/mcp.js)
 
+const fs = require('fs');
 const readline = require('readline');
-const { loadConfig, log } = require('./src/core/config');
+const { loadConfig, log, paths } = require('./src/core/config');
 const { request, health, launchApp } = require('./src/core/client');
 const pkg = require('./package.json');
 
@@ -52,24 +53,33 @@ async function callTool(name, args = {}) {
   if (!def) throw Object.assign(new Error(`event 는 ${Object.keys(EVENTS).join(', ')} 중 하나`), { code: -32602 });
   const evt = { ...def, session_id: 'chat', ts: Date.now() };
   if (typeof args.message === 'string' && args.message.trim()) evt.message = args.message.trim().slice(0, 80);
-  try {
-    const r = await request(cfg.port, '/event', evt, 1500);
-    if (r.status === 200) return 'ok';
-  } catch { /* 펫이 꺼져 있음 */ }
-  // 꺼져 있으면 작업 시작 신호일 때만 펫을 띄움 (끝 신호로 갑자기 뜨지는 않게)
-  if (args.event === 'start' && cfg.autoStart) {
+  // 펫이 잠깐 바빠서(절전 해제 직후 등) 늦게 답할 수 있으니 한 번 더 기다려 본다
+  for (const timeout of [1500, 3000]) {
+    try {
+      const r = await request(cfg.port, '/event', evt, timeout);
+      if (r.status === 200) return 'ok';
+    } catch { /* 다시 시도 */ }
+  }
+  // 꺼져 있으면 펫을 다시 띄우면서 이 신호를 전한다 (답변 끝 알림이 버려지지 않게).
+  // 단, 사용자가 메뉴에서 직접 껐거나 자동 실행을 껐으면 띄우지 않음. 세션 종료 신호로는 띄우지 않음.
+  if (canAutoLaunch(cfg) && args.event !== 'end') {
     const r = launchApp(evt);
-    return r.ok ? 'ClaudePet 을 띄웠어요' : `ClaudePet 을 띄우지 못함 (${r.error})`;
+    return r.ok ? 'ClaudePet 을 다시 띄웠어요' : `ClaudePet 을 띄우지 못함 (${r.error})`;
   }
   return 'ClaudePet 꺼져 있음';
 }
 
-/** Claude 앱이 켜졌는데 펫이 꺼져 있으면 띄운다 (설정에서 자동 실행을 껐거나 CLAUDE_PET_NO_AUTOLAUNCH 가 있으면 안 함) */
+function canAutoLaunch(cfg) {
+  if (!cfg.autoStart || process.env.CLAUDE_PET_NO_AUTOLAUNCH) return false;
+  return !fs.existsSync(paths.dismissed); // 사용자가 직접 끈 뒤에는 다시 띄우지 않음
+}
+
+/** Claude 앱이 켜져 있는 동안 펫이 꺼져 있으면 띄운다 (시작할 때 + 1분마다) */
 let bootJob = null;
 async function ensurePet() {
   try {
     const cfg = loadConfig();
-    if (!cfg.autoStart || process.env.CLAUDE_PET_NO_AUTOLAUNCH) return;
+    if (!canAutoLaunch(cfg)) return;
     if (await health(cfg.port, 600)) return;
     launchApp(null);
   } catch (e) {
@@ -131,6 +141,8 @@ async function handle(msg) {
 
 if (require.main === module) {
   const pending = new Set();
+  // 펫이 죽거나 꺼져도 Claude 앱이 켜져 있는 동안 1분마다 되살림
+  setInterval(() => { ensurePet(); }, 60 * 1000).unref();
   const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
   rl.on('line', (line) => {
     const text = line.trim();

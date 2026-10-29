@@ -287,6 +287,13 @@ document.addEventListener('mousemove', (e) => {
   setHit(isHit(e.clientX, e.clientY));
 });
 document.addEventListener('mouseleave', () => { if (!state.drag) setHit(false); });
+// 메인 프로세스가 마우스 위치를 직접 보내 확인 (OS 의 마우스 이벤트 전달이 끊겨도 클릭이 살아나게)
+api.onHitTest(({ x, y }) => {
+  if (state.drag) return;
+  const hit = isHit(x, y);
+  state.hit = hit;
+  api.setIgnore(!hit); // 메인이 중복은 걸러냄
+});
 
 // ---- 드래그 / 클릭 / 메뉴 -------------------------------------------------------
 canvas.addEventListener('pointerdown', (e) => {

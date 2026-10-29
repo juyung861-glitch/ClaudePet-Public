@@ -2,7 +2,7 @@
 // Electron 메인 프로세스: 투명 펫 창 + 로컬 서버 + 트레이/메뉴
 const path = require('path');
 const fs = require('fs');
-const { app, BrowserWindow, ipcMain, Menu, Tray, screen, nativeImage, shell, dialog, clipboard, net } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, screen, nativeImage, shell, dialog, clipboard, net, powerMonitor } = require('electron');
 
 const { paths, PACKAGED, loadConfig, updateConfig, readJson, writeJsonAtomic, ensureConfigFile, log } = require('./core/config');
 const hooksSetup = require('../scripts/install');
@@ -392,6 +392,53 @@ function clampPosition(pos, size) {
   return { x: Math.round(x), y: Math.round(y) };
 }
 
+// ---- 클릭 통과 · 항상 위 유지 --------------------------------------------------------
+let ignoring = null;
+/** 실제 창 상태를 기억해 두고 바뀔 때만 OS 에 알린다 (렌더러와 엇갈려도 여기서 바로잡음) */
+function setIgnore(ignore) {
+  if (!win || win.isDestroyed()) return;
+  ignore = !!ignore;
+  if (ignore === ignoring) return;
+  ignoring = ignore;
+  if (process.env.CLAUDE_PET_DEBUG) log(`click-through ${ignore ? 'on' : 'off'}`);
+  if (ignore) win.setIgnoreMouseEvents(true, { forward: true });
+  else win.setIgnoreMouseEvents(false);
+}
+
+let keepTimers = [];
+/**
+ * Windows 는 클릭 통과 창에 마우스 움직임을 넘겨주다가 가끔 멈추고(→ 클릭이 영영 안 됨),
+ * 다른 항상-위 창·전체화면·절전 해제 뒤에 펫을 뒤로 밀어내기도 한다(→ 맨 아래에 깔림).
+ * 그래서 마우스 위치를 직접 확인하고, 항상-위를 주기적으로 다시 건다.
+ */
+function startKeepers() {
+  for (const t of keepTimers) clearInterval(t);
+  keepTimers = [];
+  // 1) 마우스가 펫 창 위에 있으면 렌더러에게 그 점이 펫인지 물어봄 (OS 가 넘겨주는 이벤트에 의존하지 않음)
+  keepTimers.push(setInterval(() => {
+    if (!win || win.isDestroyed() || !win.isVisible() || dragState) return;
+    const c = screen.getCursorScreenPoint();
+    const b = win.getBounds();
+    const inside = c.x >= b.x && c.x < b.x + b.width && c.y >= b.y && c.y < b.y + b.height;
+    if (!inside) setIgnore(true);
+    else if (rendererReady) win.webContents.send('pet:hittest', { x: c.x - b.x, y: c.y - b.y });
+  }, 80));
+  // 2) 항상 위 다시 걸기
+  keepTimers.push(setInterval(keepOnTop, 3000));
+  const again = () => { keepOnTop(); setTimeout(keepOnTop, 1500); };
+  for (const ev of ['resume', 'unlock-screen', 'user-did-become-active']) {
+    try { powerMonitor.on(ev, again); } catch { /* 일부 OS 미지원 */ }
+  }
+  screen.on('display-added', again);
+  screen.on('display-metrics-changed', () => { if (win) { const p = clampPosition(winPos(), sizes()); win.setPosition(p.x, p.y); } again(); });
+}
+
+function keepOnTop() {
+  if (!win || win.isDestroyed() || !win.isVisible() || dragState) return;
+  win.setAlwaysOnTop(true, 'screen-saver');
+  if (typeof win.moveTop === 'function') win.moveTop();
+}
+
 function createWindow() {
   const size = sizes();
   const saved = readJson(paths.state, {}) || {};
@@ -425,13 +472,14 @@ function createWindow() {
       spellcheck: false,
     },
   });
-  win.setAlwaysOnTop(true, 'floating');
+  // 'screen-saver' 단계: 작업 표시줄·다른 항상-위 창보다 위 (floating 은 Windows 에서 쉽게 밀려남)
+  win.setAlwaysOnTop(true, 'screen-saver');
   try { win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch { /* 일부 OS 미지원 */ }
-  win.setIgnoreMouseEvents(true, { forward: true });
+  setIgnore(true);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  win.once('ready-to-show', () => win.showInactive());
+  win.once('ready-to-show', () => { win.showInactive(); startKeepers(); });
 
   let saveTimer = null;
   win.on('moved', () => {
@@ -865,14 +913,14 @@ ipcMain.on('renderer:ready', () => {
 });
 ipcMain.on('mouse:ignore', (_e, ignore) => {
   if (!win || dragState) return;
-  win.setIgnoreMouseEvents(!!ignore, { forward: true });
+  setIgnore(ignore);
 });
 ipcMain.on('drag:start', () => {
   if (!win) return;
   const c = screen.getCursorScreenPoint();
   const [x, y] = win.getPosition();
   dragState = { cx: c.x, cy: c.y, x, y };
-  win.setIgnoreMouseEvents(false);
+  setIgnore(false);
 });
 ipcMain.on('drag:move', () => {
   if (!win || !dragState) return;

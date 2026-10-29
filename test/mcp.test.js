@@ -100,7 +100,7 @@ test('MCP 서버: 초기화 · 도구 목록 · 펫 신호 전달', async () => 
   assert.equal(mcp.lines.length, 8);
 });
 
-test('MCP 서버: 펫이 꺼져 있으면 끝 신호로 펫을 띄우지 않음', async () => {
+test('MCP 서버: 자동 실행이 꺼져 있으면 펫을 띄우지 않고 꺼져 있다고 답함', async () => {
   const mcp = startServer();
   try {
     const r = await mcp.call('tools/call', { name: 'pet_signal', arguments: { event: 'done' } });
