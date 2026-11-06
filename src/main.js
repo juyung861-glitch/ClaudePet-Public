@@ -93,7 +93,11 @@ if (MAINTENANCE) {
     app.commandLine.appendSwitch('enable-transparent-visuals');
     app.disableHardwareAcceleration();
   }
-  if (process.platform === 'win32') app.setAppUserModelId('dev.claude-pet');
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('dev.claude-pet');
+    // 화면이 꺼지거나 오래 가만히 두면 Chromium 이 투명한 항상-위 창을 '가려진 창'으로 보고 멈추는 문제 방지
+    app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+  }
   app.on('second-instance', (_e, _argv, _cwd, data) => {
     if (data && data.boot) applyBoot(data.boot);
     if (win && !win.isVisible()) win.showInactive();
@@ -395,10 +399,10 @@ function clampPosition(pos, size) {
 // ---- 클릭 통과 · 항상 위 유지 --------------------------------------------------------
 let ignoring = null;
 /** 실제 창 상태를 기억해 두고 바뀔 때만 OS 에 알린다 (렌더러와 엇갈려도 여기서 바로잡음) */
-function setIgnore(ignore) {
+function setIgnore(ignore, force = false) {
   if (!win || win.isDestroyed()) return;
   ignore = !!ignore;
-  if (ignore === ignoring) return;
+  if (ignore === ignoring && !force) return;
   ignoring = ignore;
   if (process.env.CLAUDE_PET_DEBUG) log(`click-through ${ignore ? 'on' : 'off'}`);
   if (ignore) win.setIgnoreMouseEvents(true, { forward: true });
@@ -406,6 +410,33 @@ function setIgnore(ignore) {
 }
 
 let keepTimers = [];
+let hoverSince = 0;
+let lastHitReply = 0;
+
+/** 멈춘 화면은 같은 프로세스로 다시 불러와도 안 풀리므로 프로세스를 끝내고 새로 띄움 (→ render-process-gone → reloadRenderer) */
+function restartRenderer() {
+  if (!win || win.isDestroyed()) return;
+  rendererReady = false;
+  setIgnore(true, true);
+  // forcefullyCrashRenderer 는 완전히 멈춘 프로세스는 못 끝내는 경우가 있어 OS 에서 직접 종료
+  let pid = 0;
+  try { pid = win.webContents.getOSProcessId(); } catch { /* 이미 없음 */ }
+  try {
+    if (pid) process.kill(pid, 'SIGKILL');
+    else win.webContents.forcefullyCrashRenderer();
+  } catch {
+    reloadRenderer();
+  }
+}
+
+function reloadRenderer() {
+  if (!win || win.isDestroyed()) return;
+  rendererReady = false;
+  pending.length = 0;
+  setIgnore(true, true);
+  win.webContents.reload();
+  if (pet) loadPet(pet); // 다시 불러온 화면에 지금 펫·상태를 다시 보냄 (준비되면 전달됨)
+}
 /**
  * Windows 는 클릭 통과 창에 마우스 움직임을 넘겨주다가 가끔 멈추고(→ 클릭이 영영 안 됨),
  * 다른 항상-위 창·전체화면·절전 해제 뒤에 펫을 뒤로 밀어내기도 한다(→ 맨 아래에 깔림).
@@ -420,9 +451,20 @@ function startKeepers() {
     const c = screen.getCursorScreenPoint();
     const b = win.getBounds();
     const inside = c.x >= b.x && c.x < b.x + b.width && c.y >= b.y && c.y < b.y + b.height;
-    if (!inside) setIgnore(true);
-    else if (rendererReady) win.webContents.send('pet:hittest', { x: c.x - b.x, y: c.y - b.y });
+    if (!inside) { hoverSince = 0; setIgnore(true); return; }
+    if (!rendererReady) return;
+    win.webContents.send('pet:hittest', { x: c.x - b.x, y: c.y - b.y });
+    // 마우스가 펫 창 위에 있는데 화면 쪽이 3초 넘게 답이 없으면 멈춘 것 → 다시 불러옴
+    const now = Date.now();
+    if (!hoverSince) hoverSince = now;
+    if (now - Math.max(hoverSince, lastHitReply) > 3000) {
+      log('renderer not answering hit-test → restart');
+      hoverSince = 0;
+      restartRenderer();
+    }
   }, 80));
+  // Windows 가 창 상태를 몰래 되돌려도(절전·화면 꺼짐 뒤) 실제 상태를 2초마다 다시 적용
+  keepTimers.push(setInterval(() => { if (!dragState && ignoring !== null) setIgnore(ignoring, true); }, 2000));
   // 2) 항상 위 다시 걸기
   keepTimers.push(setInterval(keepOnTop, 3000));
   const again = () => { keepOnTop(); setTimeout(keepOnTop, 1500); };
@@ -478,6 +520,15 @@ function createWindow() {
   setIgnore(true);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
+  // 화면 쪽이 죽거나 멈추면 다시 불러옴 (그대로 두면 클릭 통과 상태로 굳음)
+  win.webContents.on('render-process-gone', (_e, d) => {
+    log('renderer gone', d && d.reason);
+    setTimeout(reloadRenderer, 500);
+  });
+  win.on('unresponsive', () => {
+    log('window unresponsive → restart');
+    restartRenderer();
+  });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.once('ready-to-show', () => { win.showInactive(); startKeepers(); });
 
@@ -912,6 +963,7 @@ ipcMain.on('renderer:ready', () => {
   }
 });
 ipcMain.on('mouse:ignore', (_e, ignore) => {
+  lastHitReply = Date.now();
   if (!win || dragState) return;
   setIgnore(ignore);
 });
